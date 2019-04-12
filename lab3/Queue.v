@@ -86,21 +86,21 @@ module Queue #(parameter QL=2, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,
     input clk100,rst,en_out,en_in,
     input [QW-1:0]in,
     output [QW-1:0]out,
-    output reg[2:0]empty,full, //led light 
-    output [7:0]AN,
-    output [6:0]d  //display
+    output [2:0]empty,full, //led light 
+    output reg[7:0]AN,
+    output DP,
+    output reg[6:0]d  //display
 );
     reg state,next_state;
     reg ce_head,ce_tail,we;
     reg [QL-1:0]wa,ra0,ra1;
-    reg [QL-1:0]head_pointer,tail_pointer;
 
     wire rst_signal;
      //2 Counter
     wire ce_head_signal,ce_tail_signal;
-    wire [QL-1:0]head_pointer_signal,tail_pointer_signal;
-    Counter head_counter(clk100,rst_signal,ce_head_signal,,,head_pointer_signal);
-    Counter tail_counter(clk100,rst_signal,ce_tail_signal,,,tail_pointer_signal);
+    wire [QL-1:0]head_pointer,tail_pointer;
+    Counter head_counter(clk100,rst_signal,ce_head_signal,,,head_pointer);
+    Counter tail_counter(clk100,rst_signal,ce_tail_signal,,,tail_pointer);
     
     //1 RegFile
     wire we_signal;
@@ -119,7 +119,10 @@ module Queue #(parameter QL=2, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,
     assign rst_signal=rst; //!
     //read
     assign ra0_signal=ra0;
-  
+    
+    assign empty=(tail_pointer==head_pointer)?3'b010:3'b000;
+    assign full=((tail_pointer+1)%8==head_pointer)?3'b100:3'b000;
+   
     always @(posedge clk100,posedge rst)begin
         if(rst) state=S_check;  
         else state=next_state;
@@ -133,10 +136,10 @@ module Queue #(parameter QL=2, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,
         case(state)
         S_in: begin
             if(~en_in) begin  //A way to fix viberation 
-                ce_head=1; //#
                 //write into RF
                 we=1;
-                wa=head_pointer; //
+                wa=head_pointer; //先入队，再让head_pointer+1！
+                ce_head=1; //#
             end
         end
 
@@ -147,24 +150,17 @@ module Queue #(parameter QL=2, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,
                 ra0=tail_pointer;
             end
         end
-
-        S_check: begin
-            empty=(head_counte==tail_counter)?3'b000:3'b010;        //Here is problem!!!!
-            if((tail_counter+1)%8==head_counter) full=3'b100;
-            else full=3'b000;
-        end     
-
+        
         default:begin
-
         end    
     endcase
     end
 
     // Display 
     wire Clk5;   //5MHz
-    clk_wiz_0(Clk5,,,Clk100);
-    
-    Display display (show,d);
+    clk_wiz_0(Clk5,,,clk100);
+    reg [12:0]cnt_show;
+    Display display (ra1_signal,d);
 
     always @(posedge Clk5)begin
         if(cnt_show >= 13'd7999)
@@ -173,23 +169,40 @@ module Queue #(parameter QL=2, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,
             cnt_show    <= cnt_show + 13'h1;
     end
 
+    assign DP=(ra1_signal==head_pointer)?1:0;
+
     always @ * begin
         if(cnt_show<13'd999) begin
-            
-            show=;
-            AN=8'b1111_1110;
+            ra1=3'b000;
+            AN=(ra1_signal<tail_pointer||ra1_signal>=head_pointer)?8'b0111_1111:8'b1111_1111;
         end
         else if(cnt_show<13'd1999) begin
-            show=r1;
-            AN=8'b1111_1101;
+            ra1=3'b001;
+            AN=(ra1_signal<tail_pointer||ra1_signal>=head_pointer)?8'b1011_1111:8'b1111_1111;
         end
         else if(cnt_show<13'd2999) begin
-            show=r2;
-            AN=8'b1111_1011;
+            ra1=3'b010;
+            AN=(ra1_signal<tail_pointer||ra1_signal>=head_pointer)?8'b1101_1111:8'b1111_1111;
+        end
+        else if(cnt_show<13'd3999) begin
+            ra1=3'b011;
+            AN=(ra1_signal<tail_pointer||ra1_signal>=head_pointer)?8'b1110_1111:8'b1111_1111;
+        end
+        else if(cnt_show<13'd4999) begin
+            ra1=3'b100;
+            AN=(ra1_signal<tail_pointer||ra1_signal>=head_pointer)?8'b1111_0111:8'b1111_1111;
+        end
+        else if(cnt_show<13'd5999) begin
+            ra1=3'b101;
+            AN=(ra1_signal<tail_pointer||ra1_signal>=head_pointer)?8'b1111_1011:8'b1111_1111;
+        end
+        else if(cnt_show<13'd6999) begin
+            ra1=3'b110;
+            AN=(ra1_signal<tail_pointer||ra1_signal>=head_pointer)?8'b1111_1101:8'b1111_1111;
         end
         else begin
-            show=r3;
-            AN=8'b1111_0111;
+            ra1=3'b111;
+            AN=(ra1_signal<tail_pointer||ra1_signal>=head_pointer)?8'b1111_1110:8'b1111_1111;
         end
     end
  
