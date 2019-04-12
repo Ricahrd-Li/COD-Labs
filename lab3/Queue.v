@@ -44,30 +44,34 @@ module Display(
     end
 endmodule
 
-module RegFile #(parameter W=32,N=3) ( //W=Width, N=num
+module RegFile #(parameter W=4,N=3) ( //W=Width, N=num
     input clk,rst,we,
     input [N-1:0]ra0,ra1,wa,
     input [W-1:0]wd,
     output [W-1:0]rd0,rd1
 );
     reg [W-1:0]Reg[N-1:0];
-    integer k;
     
     assign rd0=Reg[ra0];
     assign rd1=Reg[ra1];
 
     always @(posedge clk,posedge rst)begin
         if(rst) begin 
-            for(k=0;k<N;k=k+1)begin
-                Reg[k]=0;
-            end                      
+            Reg[3'b000]<=0; 
+            Reg[3'b001]<=0; 
+            Reg[3'b010]<=0; 
+            Reg[3'b011]<=0; 
+            Reg[3'b100]<=0; 
+            Reg[3'b101]<=0; 
+            Reg[3'b110]<=0; 
+            Reg[3'b111]<=0;           
         end
-        else if(we) Reg[wa]=wd;    
+        else if(we) Reg[wa]<=wd;    
     end
 
 endmodule
 
-module Counter #(parameter W=4)(
+module Counter #(parameter W=3)(
     input clk,rst,ce,pe,
     input [W-1:0]d,
     output [W-1:0]q
@@ -82,14 +86,14 @@ module Counter #(parameter W=4)(
     assign q=count;
 endmodule
 
-module Queue #(parameter QL=2, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,S_check=3'b100)(  //QL: queue length, QW: queue word width 
+module Queue #(parameter QL=3, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,S_check=3'b100)(  //QL: queue length, QW: queue word width 
     input clk100,rst,en_out,en_in,
     input [QW-1:0]in,
     output [QW-1:0]out,
     output [2:0]empty,full, //led light 
     output reg[7:0]AN,
     output DP,
-    output reg[6:0]d  //display
+    output [6:0]d  //display
 );
     reg state,next_state;
     reg ce_head,ce_tail,we;
@@ -124,22 +128,23 @@ module Queue #(parameter QL=2, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,
     assign full=((tail_pointer+1)%8==head_pointer)?3'b100:3'b000;
    
     always @(posedge clk100,posedge rst)begin
-        if(rst) state=S_check;  
+        if(rst) state=S_initial;  
         else state=next_state;
     end
 
+    
     always @(posedge clk100) begin  //Here we need to use posedge clk, cause we want the enable signal just works when posedge clk!
         if(en_in) next_state=S_in;
         if(en_out) next_state=S_out;
-        else next_state=S_check;
-       
+
         case(state)
         S_in: begin
             if(~en_in) begin  //A way to fix viberation 
                 //write into RF
-                we=1;
+                we=1;     
                 wa=head_pointer; //先入队，再让head_pointer+1！
-                ce_head=1; //#
+                ce_head=1; //head_pointer +=1
+                next_state=S_initial;
             end
         end
 
@@ -148,10 +153,14 @@ module Queue #(parameter QL=2, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,
                 ce_tail=1;
                 //read
                 ra0=tail_pointer;
+                next_state=S_initial;
             end
         end
         
         default:begin
+            we=0;
+            ce_tail=0;
+            ce_head=0;
         end    
     endcase
     end
