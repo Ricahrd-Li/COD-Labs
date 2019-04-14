@@ -91,7 +91,7 @@ module Counter #(parameter W=3)(
     assign q=count;
 endmodule
 
-module Queue #(parameter QL=3, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,S_check=3'b100)(  //QL: queue length, QW: queue word width 
+module Queue #(parameter QL=3, QW=4)(  //QL: queue length, QW: queue word width 
     input clk100,rst,en_out,en_in,
     input [QW-1:0]in,
     output [QW-1:0]out,
