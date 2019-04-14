@@ -46,8 +46,8 @@ endmodule
 
 module RegFile #(parameter W=4,N=3) ( //W=Width, N=num
     input clk,rst,we,
-    input [N-1:0]ra0,ra1,wa,
-    input [W-1:0]wd,
+    input [N-1:0]ra0,ra1,wa, //address 是3位的： 0--8 [2:0]
+    input [W-1:0]wd,    //data 是4位的：0-15 [3:0]
     output [W-1:0]rd0,rd1
 );
     reg [W-1:0]Reg[N-1:0];
@@ -95,81 +95,74 @@ module Queue #(parameter QL=3, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,
     output DP,
     output [6:0]d  //display
 );
-    reg state,next_state;
     reg ce_head,ce_tail,we;
     reg [QL-1:0]wa,ra0,ra1;
 
-    wire rst_signal;
      //2 Counter
     wire ce_head_signal,ce_tail_signal;
     wire [QL-1:0]head_pointer,tail_pointer;
-    Counter head_counter(clk100,rst_signal,ce_head_signal,,,head_pointer);
-    Counter tail_counter(clk100,rst_signal,ce_tail_signal,,,tail_pointer);
+    Counter head_counter(clk100,rst,ce_head_signal,,,head_pointer);
+    Counter tail_counter(clk100,rst,ce_tail_signal,,,tail_pointer);
+    
+    assign ce_head_signal=ce_head; 
+    assign ce_tail_signal=ce_tail;
     
     //1 RegFile
     wire we_signal;
-    wire [QW-1:0]rd0_signal,rd1_signal,wd_signal;
+    wire [QW-1:0]rd0_signal,rd1_signal;
     wire [QL-1:0]ra0_signal,ra1_signal,wa_signal; 
-    RegFile RF(.clk(clk100),.rst(rst_signal),.we(we_signal),.wd(wd_signal),
+    
+    RegFile RF(.clk(clk100),.rst(rst),.we(we_signal),.wd(in),.wa(wa_signal),
             .ra0(ra0_signal),.rd0(out),.ra1(ra1_signal),.rd1(rd1_signal));
 
-    assign ce_head_signal=ce_head; //#
-    assign ce_tail_signal=ce_tail;
     //write
     assign we_signal=we;
     assign wa_signal=wa;
-    assign wd_signal=in;
-
-    assign rst_signal=rst; //!
     //read
     assign ra0_signal=ra0;
+    assign ra1_signal=ra1;
     
     assign empty=(tail_pointer==head_pointer)?3'b010:3'b000;
     assign full=((tail_pointer+1)%8==head_pointer)?3'b100:3'b000;
    
-    always @(posedge clk100,posedge rst)begin
-        if(rst) state=S_initial;  
-        else state=next_state;
-    end
-
+    reg in_flag,out_flag;  // use flag to handle viboration
     
-    always @(posedge clk100) begin  //Here we need to use posedge clk, cause we want the enable signal just works when posedge clk!
-        if(en_in) next_state=S_in;
-        if(en_out) next_state=S_out;
-
-        case(state)
-        S_in: begin
-            if(~en_in) begin  //A way to fix viberation 
-                //write into RF
-                we=1;     
-                wa=head_pointer; //先入队，再让head_pointer+1！
-                ce_head=1; //head_pointer +=1
-                next_state=S_initial;
-            end
-        end
-
-        S_out: begin
-            if(~en_out)begin    
-                ce_tail=1;
-                //read
-                ra0=tail_pointer;
-                next_state=S_initial;
-            end
+    always @(posedge clk100,posedge rst)begin  //No '=' in sequential logic always, why? 
+        if(rst) begin
+            in_flag<=0;
+            out_flag<=0;
+            we<=0; 
+            ce_tail<=0;
+            ce_head<=0;
         end
         
-        default:begin
-            we=0;
-            ce_tail=0;
-            ce_head=0;
-        end    
-    endcase
+        else begin
+            we<=0; 
+            ce_tail<=0;
+            ce_head<=0;
+            
+            if(en_in) in_flag<=1;
+            if(~en_in && in_flag) begin
+                we<=1;     
+                wa<=tail_pointer; //先入队，再让tail_pointer+1
+                ce_tail<=1; //tail_pointer +=1
+                in_flag<=0;
+            end
+            
+            if(en_out) out_flag<=1;
+            if(~en_out && out_flag) begin
+                ra0<=head_pointer; //read first, then head_pointer++
+                ce_head<=1;  
+                out_flag<=0;
+            end  
+        end
     end
 
     // Display 
     wire Clk5;   //5MHz
-    clk_wiz_0(Clk5,,,clk100);
+    clk_wiz_0 wiz(Clk5,,,clk100);
     reg [12:0]cnt_show;
-    Display display (ra1_signal,d);
+    Display display (rd1_signal,d);
 
     always @(posedge Clk5)begin
         if(cnt_show >= 13'd7999)
@@ -178,40 +171,49 @@ module Queue #(parameter QL=3, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,
             cnt_show    <= cnt_show + 13'h1;
     end
 
-    assign DP=(ra1_signal==head_pointer)?1:0;
+    assign DP=(ra1_signal==head_pointer)?0:1;
 
     always @ * begin
         if(cnt_show<13'd999) begin
             ra1=3'b000;
-            AN=(ra1_signal<tail_pointer||ra1_signal>=head_pointer)?8'b0111_1111:8'b1111_1111;
+            if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b0111_1111:8'b1111_1111;
+            else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b0111_1111;
+            
         end
         else if(cnt_show<13'd1999) begin
             ra1=3'b001;
-            AN=(ra1_signal<tail_pointer||ra1_signal>=head_pointer)?8'b1011_1111:8'b1111_1111;
+            if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1011_1111:8'b1111_1111;
+            else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1011_1111;
         end
         else if(cnt_show<13'd2999) begin
             ra1=3'b010;
-            AN=(ra1_signal<tail_pointer||ra1_signal>=head_pointer)?8'b1101_1111:8'b1111_1111;
+            if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1101_1111:8'b1111_1111;
+            else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1101_1111;
         end
         else if(cnt_show<13'd3999) begin
             ra1=3'b011;
-            AN=(ra1_signal<tail_pointer||ra1_signal>=head_pointer)?8'b1110_1111:8'b1111_1111;
+            if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1110_1111:8'b1111_1111;
+            else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1110_1111;
         end
         else if(cnt_show<13'd4999) begin
             ra1=3'b100;
-            AN=(ra1_signal<tail_pointer||ra1_signal>=head_pointer)?8'b1111_0111:8'b1111_1111;
+            if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1111_0111:8'b1111_1111;
+            else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1111_0111;
         end
         else if(cnt_show<13'd5999) begin
             ra1=3'b101;
-            AN=(ra1_signal<tail_pointer||ra1_signal>=head_pointer)?8'b1111_1011:8'b1111_1111;
+            if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1111_1011:8'b1111_1111;
+            else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1111_1011;
         end
         else if(cnt_show<13'd6999) begin
             ra1=3'b110;
-            AN=(ra1_signal<tail_pointer||ra1_signal>=head_pointer)?8'b1111_1101:8'b1111_1111;
+            if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1111_1101:8'b1111_1111;
+            else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1111_1101;
         end
         else begin
             ra1=3'b111;
-            AN=(ra1_signal<tail_pointer||ra1_signal>=head_pointer)?8'b1111_1110:8'b1111_1111;
+            if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1111_1110:8'b1111_1111;
+            else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1111_1110;
         end
     end
  
