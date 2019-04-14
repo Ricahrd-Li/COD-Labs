@@ -19,29 +19,34 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 module Display(  
+    input enable,
     input [3:0]y,
     output reg[6:0]x
 );
     always @ * begin
-        case(y[3:0])
-            4'b0000: x = 7'b100_0000; //0
-            4'b0001: x = 7'b111_1001;//1001_111;
-            4'b0010: x = 7'b010_0100;//0010_010;
-            4'b0011: x = 7'b011_0000;//0000_110;//
-            4'b0100: x = 7'b001_1001;//1001_100;
-            4'b0101: x = 7'b001_0010;//0100_100;
-            4'b0110: x = 7'b000_0010;//0100_000;
-            4'b0111: x = 7'b111_1000;//0001_111;
-            4'b1000: x = 7'b000_0000;//0000_000;
-            4'b1001: x = 7'b001_0000;//0000_100;
-            4'b1010: x= 7'b000_1000; //A 000_1000        
-            4'b1011: x= 7'b000_0011; //b 110_0000
-            4'b1100: x= 7'b010_0111; //c 111_0010
-            4'b1101: x= 7'b010_0001; //d 100_0010
-            4'b1110: x= 7'b000_0110;//E  011_0000
-            default: x= 7'b000_1110;//F 011_1000
-        endcase
-    end
+        if(enable) begin
+            case(y[3:0])
+                4'b0000: x = 7'b100_0000; //0
+                4'b0001: x = 7'b111_1001;//1001_111;
+                4'b0010: x = 7'b010_0100;//0010_010;
+                4'b0011: x = 7'b011_0000;//0000_110;//
+                4'b0100: x = 7'b001_1001;//1001_100;
+                4'b0101: x = 7'b001_0010;//0100_100;
+                4'b0110: x = 7'b000_0010;//0100_000;
+                4'b0111: x = 7'b111_1000;//0001_111;
+                4'b1000: x = 7'b000_0000;//0000_000;
+                4'b1001: x = 7'b001_0000;//0000_100;
+                4'b1010: x= 7'b000_1000; //A 000_1000        
+                4'b1011: x= 7'b000_0011; //b 110_0000
+                4'b1100: x= 7'b010_0111; //c 111_0010
+                4'b1101: x= 7'b010_0001; //d 100_0010
+                4'b1110: x= 7'b000_0110;//E  011_0000
+                default: x= 7'b000_1110;//F 011_1000
+            endcase
+        end
+        else x=7'b111_1111;
+      end
+      
 endmodule
 
 module RegFile #(parameter W=4,N=3) ( //W=Width, N=num
@@ -92,7 +97,7 @@ module Queue #(parameter QL=3, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,
     output [QW-1:0]out,
     output [2:0]empty,full, //led light 
     output reg[7:0]AN,
-    output reg DP,
+    output DP,
     output [6:0]d  //display
 );
     reg ce_head,ce_tail,we;
@@ -147,7 +152,7 @@ module Queue #(parameter QL=3, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,
             if(en_in&&!full) in_flag<=1;
             if(~en_in && in_flag) begin
                 we<=1;     
-                wa<=tail_pointer; //先入队，再让tail_pointer+1
+                wa<=tail_pointer; 
                 ce_tail<=1; //tail_pointer +=1
                 in_flag<=0;
             end
@@ -165,7 +170,13 @@ module Queue #(parameter QL=3, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,
     wire Clk5;   //5MHz
     clk_wiz_0 wiz(Clk5,,,clk100);
     reg [12:0]cnt_show;
-    Display display (rd1_signal,d);
+    
+    wire display_enable;
+    
+    assign DP=(ra1_signal==head_pointer)?0:1;  //Why this didn't work?
+    assign display_enable=~(empty&&~DP);  // if empty&&~DP : display_enable=0; else =1
+    
+    Display display (display_enable, rd1_signal,d);
 
     always @(posedge Clk5)begin
         if(cnt_show >= 13'd7999)
@@ -174,57 +185,55 @@ module Queue #(parameter QL=3, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,
             cnt_show    <= cnt_show + 13'h1;
     end
 
-   //assign DP=(ra1_signal==head_pointer)?0:1;  //Why this didn't work?
-
     always @ * begin
         if(cnt_show<13'd999) begin
             ra1=3'b000;
-            if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b0111_1111:8'b1111_1111;
+            if(head_pointer<=tail_pointer)  AN=(~DP||(ra1_signal>=head_pointer&&ra1_signal<tail_pointer))?8'b0111_1111:8'b1111_1111;
             else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b0111_1111;
-            DP=(head_pointer==3'b000)?0:1; 
+            
         end
         else if(cnt_show<13'd1999) begin
-            ra1=3'b001;
-            if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1011_1111:8'b1111_1111;
+            ra1=3'b001;  
+            if(head_pointer<=tail_pointer)  AN=(~DP||(ra1_signal>=head_pointer&&ra1_signal<tail_pointer))?8'b1011_1111:8'b1111_1111;
             else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1011_1111;
-            DP=(head_pointer==3'b001)?0:1; 
+
 
         end
         else if(cnt_show<13'd2999) begin
             ra1=3'b010;
-            if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1101_1111:8'b1111_1111;
+            if(head_pointer<=tail_pointer)  AN=(~DP||(ra1_signal>=head_pointer&&ra1_signal<tail_pointer))?8'b1101_1111:8'b1111_1111;
             else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1101_1111;
-            DP=(head_pointer==3'b010)?0:1; 
+
         end
         else if(cnt_show<13'd3999) begin
             ra1=3'b011;
-            if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1110_1111:8'b1111_1111;
+            if(head_pointer<=tail_pointer)  AN=(~DP||(ra1_signal>=head_pointer&&ra1_signal<tail_pointer))?8'b1110_1111:8'b1111_1111;
             else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1110_1111;
-            DP=(head_pointer==3'b011)?0:1; 
+
         end
         else if(cnt_show<13'd4999) begin
             ra1=3'b100;
-            if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1111_0111:8'b1111_1111;
+            if(head_pointer<=tail_pointer)  AN=(~DP||(ra1_signal>=head_pointer&&ra1_signal<tail_pointer))?8'b1111_0111:8'b1111_1111;
             else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1111_0111;
-            DP=(head_pointer==3'b100)?0:1; 
+
         end
         else if(cnt_show<13'd5999) begin
             ra1=3'b101;
-            if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1111_1011:8'b1111_1111;
+            if(head_pointer<=tail_pointer)  AN=(~DP||(ra1_signal>=head_pointer&&ra1_signal<tail_pointer))?8'b1111_1011:8'b1111_1111;
             else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1111_1011;
-            DP=(head_pointer==3'b101)?0:1; 
+
         end
         else if(cnt_show<13'd6999) begin
             ra1=3'b110;
-            if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1111_1101:8'b1111_1111;
+            if(head_pointer<=tail_pointer)  AN=(~DP||(ra1_signal>=head_pointer&&ra1_signal<tail_pointer))?8'b1111_1101:8'b1111_1111;
             else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1111_1101;
-            DP=(head_pointer==3'b110)?0:1; 
+
         end
         else begin
             ra1=3'b111;
-            if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1111_1110:8'b1111_1111;
+            if(head_pointer<=tail_pointer)  AN=(~DP||(ra1_signal>=head_pointer&&ra1_signal<tail_pointer))?8'b1111_1110:8'b1111_1111;
             else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1111_1110;
-            DP=(head_pointer==3'b111)?0:1; 
+
         end
     end
  
