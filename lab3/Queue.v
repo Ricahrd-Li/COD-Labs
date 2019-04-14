@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
 // Company: 
-// Engineer: 
+// Engineer:  Zhehao Li
 // 
 // Create Date: 2019/04/12 16:10:28
 // Design Name: 
@@ -50,7 +50,7 @@ module RegFile #(parameter W=4,N=3) ( //W=Width, N=num
     input [W-1:0]wd,    //data 是4位的：0-15 [3:0]
     output [W-1:0]rd0,rd1
 );
-    reg [W-1:0]Reg[N-1:0];
+    reg [W-1:0]Reg[7:0];  //the reg[3:0] is not right !!! should be reg[7:0]!!!
     
     assign rd0=Reg[ra0];
     assign rd1=Reg[ra1];
@@ -78,9 +78,9 @@ module Counter #(parameter W=3)(
 );
     reg [W-1:0]count;
     always @(posedge clk, posedge rst)begin
-        if(rst) count=0;
-        else if(pe) count=d;
-        else if(ce) count=count+1;
+        if(rst) count<=0;
+        else if(pe) count<=d;
+        else if(ce) count<=count+1;
     end
 
     assign q=count;
@@ -92,7 +92,7 @@ module Queue #(parameter QL=3, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,
     output [QW-1:0]out,
     output [2:0]empty,full, //led light 
     output reg[7:0]AN,
-    output DP,
+    output reg DP,
     output [6:0]d  //display
 );
     reg ce_head,ce_tail,we;
@@ -120,7 +120,7 @@ module Queue #(parameter QL=3, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,
     assign wa_signal=wa;
     //read
     assign ra0_signal=ra0;
-    assign ra1_signal=ra1;
+    assign ra1_signal=ra1;  // Is assign simultaneously executed?
     
     assign empty=(tail_pointer==head_pointer)?3'b010:3'b000;
     assign full=((tail_pointer+1)%8==head_pointer)?3'b100:3'b000;
@@ -129,6 +129,9 @@ module Queue #(parameter QL=3, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,
     
     always @(posedge clk100,posedge rst)begin  //No '=' in sequential logic always, why? 
         if(rst) begin
+            //ra1<=0;
+            //AN<=8'b0111_1111;     ----> not right, this is sequential logic, and it may lead to ra1 always=0, and AN always =0111_1111;
+            
             in_flag<=0;
             out_flag<=0;
             we<=0; 
@@ -141,7 +144,7 @@ module Queue #(parameter QL=3, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,
             ce_tail<=0;
             ce_head<=0;
             
-            if(en_in) in_flag<=1;
+            if(en_in&&!full) in_flag<=1;
             if(~en_in && in_flag) begin
                 we<=1;     
                 wa<=tail_pointer; //先入队，再让tail_pointer+1
@@ -149,7 +152,7 @@ module Queue #(parameter QL=3, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,
                 in_flag<=0;
             end
             
-            if(en_out) out_flag<=1;
+            if(en_out&&!empty) out_flag<=1;
             if(~en_out && out_flag) begin
                 ra0<=head_pointer; //read first, then head_pointer++
                 ce_head<=1;  
@@ -171,49 +174,57 @@ module Queue #(parameter QL=3, QW=4, S_initial=3'b000, S_in=3'b001,S_out=3'b010,
             cnt_show    <= cnt_show + 13'h1;
     end
 
-    assign DP=(ra1_signal==head_pointer)?0:1;
+   //assign DP=(ra1_signal==head_pointer)?0:1;  //Why this didn't work?
 
     always @ * begin
         if(cnt_show<13'd999) begin
             ra1=3'b000;
             if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b0111_1111:8'b1111_1111;
             else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b0111_1111;
-            
+            DP=(head_pointer==3'b000)?0:1; 
         end
         else if(cnt_show<13'd1999) begin
             ra1=3'b001;
             if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1011_1111:8'b1111_1111;
             else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1011_1111;
+            DP=(head_pointer==3'b001)?0:1; 
+
         end
         else if(cnt_show<13'd2999) begin
             ra1=3'b010;
             if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1101_1111:8'b1111_1111;
             else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1101_1111;
+            DP=(head_pointer==3'b010)?0:1; 
         end
         else if(cnt_show<13'd3999) begin
             ra1=3'b011;
             if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1110_1111:8'b1111_1111;
             else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1110_1111;
+            DP=(head_pointer==3'b011)?0:1; 
         end
         else if(cnt_show<13'd4999) begin
             ra1=3'b100;
             if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1111_0111:8'b1111_1111;
             else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1111_0111;
+            DP=(head_pointer==3'b100)?0:1; 
         end
         else if(cnt_show<13'd5999) begin
             ra1=3'b101;
             if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1111_1011:8'b1111_1111;
             else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1111_1011;
+            DP=(head_pointer==3'b101)?0:1; 
         end
         else if(cnt_show<13'd6999) begin
             ra1=3'b110;
             if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1111_1101:8'b1111_1111;
             else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1111_1101;
+            DP=(head_pointer==3'b110)?0:1; 
         end
         else begin
             ra1=3'b111;
             if(head_pointer<=tail_pointer)  AN=(ra1_signal>=head_pointer&&ra1_signal<tail_pointer)?8'b1111_1110:8'b1111_1111;
             else AN=(ra1_signal>=tail_pointer&&ra1_signal<head_pointer)?8'b1111_1111:8'b1111_1110;
+            DP=(head_pointer==3'b111)?0:1; 
         end
     end
  
