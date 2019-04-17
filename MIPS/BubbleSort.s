@@ -2,7 +2,7 @@
 ######## Using MARS for assembling and executing! ###########
 ##################### Zhehao Li #############################
 .data
-array: .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+array: .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 # can use 0:10 !!!
 print: .asciiz "\nThe sorted array : "
 space: .asciiz " "
 
