@@ -2,7 +2,7 @@
 ######## Using MARS for assembling and executing! ###########
 ##################### Zhehao Li #############################
 .data
-array: .word 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
+array: .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 print: .asciiz "\nThe sorted array : "
 space: .asciiz " "
 
@@ -21,7 +21,7 @@ addi $t1,$t1,4
 addi $s1,$s1,-1
 bne  $s1, $zero, Read
 
-# Measure time 1
+# Measure time 1 before sort
 li $v0,30
 syscall
 addi $s3,$a0,0
@@ -47,17 +47,17 @@ beq	  $s2, $zero, End	#if s2==0, there is no swap in one turn, end.
 li  $s2,0 # if s2==1, reset s2
 addi  $s1, $s1, -4		
 beq	  $s1, $zero, End	
-li $s4,0  # counter
+li $s4,0  # reset counter
 j   Sort_turn	
 
 Swap:
-sw	$t4, 0($t2)		#
-sw	$t3, 4($t2)		# 
+sw	$t4, 0($t2)		
+sw	$t3, 4($t2)		
 li $s2,1
 j	Increment
 
 End:
-# Measure time 2
+# Measure time 2 after sort
 li $v0,30
 syscall
 addi $s6,$a0,0
