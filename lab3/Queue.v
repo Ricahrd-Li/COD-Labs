@@ -173,7 +173,7 @@ module Queue #(parameter QL=3, QW=4)(  //QL: queue length, QW: queue word width
     
     wire display_enable;
     
-    assign DP=(ra1_signal==head_pointer)?0:1;  //Why this didn't work?
+    assign DP=(ra1_signal==head_pointer)?0:1;  
     assign display_enable=~(empty&&~DP);  // if empty&&~DP : display_enable=0; else =1
     
     Display display (display_enable, rd1_signal,d);
