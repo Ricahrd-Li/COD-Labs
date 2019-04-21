@@ -1,5 +1,6 @@
 # COD-Labs
 ## Here I save my code lab codes in the process of development. 
+# ***Please don't copy my codes without declaration.***
 ---
 ### A small summary
 **实验中90%的错误来源于对verilog语法逻辑理解的不足，往往是用写C的思维在写verilog。**
