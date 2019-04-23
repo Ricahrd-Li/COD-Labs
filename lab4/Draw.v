@@ -32,12 +32,12 @@ module DCU(
     always @(posedge clk25MHz) begin   //Horizontal scanning 
         HScount=HScount+1;
         if (HScount>800) HScount=1;
-        if (HScount==656) VGA_HS=1;   //?
+        if (HScount==656) VGA_HS=1;   //
         if (HScount==752) VGA_HS=0;
     end
     always @(posedge VGA_HS) begin
         VScount=VScount+1;
-        if (VScount>525) VScount=1;   //?
+        if (VScount>525) VScount=1;   //
         if (VScount==490) VGA_VS=1;
         if (VScount==492) VGA_VS=0;
     end
@@ -69,14 +69,14 @@ module DCU(
 endmodule
 
 module Debouncer(
-    input clk,   //25MHz   
+    input clk,   //20MHz   
     input [3:0] in_signal,
     output [3:0] out_signal
     );
     reg [3:0]out;
-    reg [25:0]counter;
-    reg [27:0]counter2;
-    assign out_signal=out;
+    reg [22:0]counter;
+    reg [24:0]counter2;
+    assign out_signal=out;                                                                                     
     
     always @(posedge clk)begin
         if(~in_signal)begin 
@@ -89,9 +89,9 @@ module Debouncer(
             counter2<=counter2+1;
             if(&counter2) begin 
                 out<=in_signal;   
-                counter2<=28'b1111_1111_1111_1111_1111_1111_1101;   //continuously move
+                counter2<=25'b1111_1111_1111_1111_11111_1101;   //continuously move
             end
-            if((counter2<27'b1111_1111_1111_1111_1111_1111_111)&counter) out<=in_signal;   //When count for 0.3s, produce a signal pulse.  0.3*25*10^6=7500000
+            else if((counter2<24'b1111_1111_1111_1111_1111_1111)&&(&counter)) out<=in_signal;   //When count for 0.3s, produce a signal pulse.  0.3*25*10^6=7500000
             else out<=0;
         end
     end    
@@ -109,11 +109,14 @@ module PCU(
     initial begin
         x=128;y=128;we=0;paddr=0;pdata=0;
     end
-    wire dir_signal;
-    Debouncer deb(clk,dir,dir_signal);
+    wire clk20MHz;
+    clk_wiz_1 wiz1(clk20MHz,clk);
+    
+    wire [3:0]dir_signal;
+    Debouncer deb(clk20MHz,dir,dir_signal);
     
     always @(posedge clk, posedge rst) begin
-            we=draw;
+            we=draw;   // YOU need to enable the we to draw colors! 
             paddr={y,x};
             pdata=rgb;
             
@@ -125,7 +128,7 @@ module PCU(
                 case (dir_signal)
                     4'b0001: if(y<8'd255)y<=y+1;  //right
                     4'b0010: if(y>8'd0)y<=y-1;  //left
-                    4'b1000: if(x>8'd0)x<=x-1;  //up
+                    4'b1000: if(x>8'd0)x<=x-1;  //up  //btnr
                     4'b0100: if(x<8'd255)x<=x+1;   //down
                     4'b1010: begin if(x>8'd0)x<=x-1;  if(y>8'd0)y<=y-1;  end //up and left 
                     4'b1001: begin if(x>8'd0)x<=x-1;  if(y<8'd255)y<=y+1; end //up and right
@@ -144,6 +147,7 @@ module Draw(
     input [3:0]dir,  //dir : {up, down ,left ,right}
     output [3:0] VGA_R,VGA_G,VGA_B,
     output VGA_HS,VGA_VS
+    //output [7:0] led_x,led_y   //For debugging. 
     );
     wire [15:0]paddr;
     wire [11:0]pdata;
@@ -154,8 +158,8 @@ module Draw(
     wire [15:0] vaddr;
     wire clk;
     
-    clk_wiz_0 wiz(clk,clk100MHz);
-  
+    clk_wiz_0 wiz(clk,clk100MHz);   //clk :25MHz
+
     dist_mem_gen_0 VRAM(.clk(clk),.we(we),.a(paddr),.d(pdata),.dpra(vaddr),.dpo(vdata));
     
     DCU dcu(clk,vdata,x,y,vaddr,VGA_R,VGA_G,VGA_B,VGA_HS,VGA_VS);
