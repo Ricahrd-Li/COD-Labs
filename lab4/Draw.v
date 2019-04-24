@@ -75,7 +75,7 @@ module Debouncer(
     );
     reg [3:0]out;
     reg [22:0]counter;
-    reg [24:0]counter2;
+    reg [23:0]counter2;
     assign out_signal=out;                                                                                     
     
     always @(posedge clk)begin
@@ -87,11 +87,17 @@ module Debouncer(
         if(in_signal)begin
             counter<=counter+1;
             counter2<=counter2+1;
-            if(&counter2) begin 
+            //continously move, every 0.1s move once 
+            if(counter2>24'b1111_1111_1111_1111_0000_0000) begin 
                 out<=in_signal;   
-                counter2<=25'b1111_1111_1111_1111_11111_1101;   //continuously move
+                counter2<=24'b1000_0000_0000_0000_0000_0000;   //continuously move   0.3s
             end
-            else if((counter2<24'b1111_1111_1111_1111_1111_1111)&&(&counter)) out<=in_signal;   //When count for 0.3s, produce a signal pulse.  0.3*25*10^6=7500000
+            //Discretely move
+            else if((counter2<24'b1000_0000_0000_0000_0000_0000)&&(counter>23'b010_0000_0000_0000_0000_0000))begin
+                 out<=in_signal;   //When count for 0.21s, produce a signal pulse.  
+                 counter<=0;
+            end
+            
             else out<=0;
         end
     end    
@@ -104,16 +110,20 @@ module PCU(
     output reg [15:0]paddr,
     output reg [11:0]pdata,
     output reg we,
-    output reg [7:0]x,y
+    output reg [7:0]x,y,
+    output [7:0]led_x,led_y
     );
+    assign led_x=x;
+    assign led_y=y;
+    
     initial begin
         x=128;y=128;we=0;paddr=0;pdata=0;
     end
-    wire clk20MHz;
-    clk_wiz_1 wiz1(clk20MHz,clk);
+    //wire clk20MHz;
+    //clk_wiz_1 wiz1(clk20MHz,clk);
     
     wire [3:0]dir_signal;
-    Debouncer deb(clk20MHz,dir,dir_signal);
+    Debouncer deb(clk,dir,dir_signal);
     
     always @(posedge clk, posedge rst) begin
             we=draw;   // YOU need to enable the we to draw colors! 
@@ -146,8 +156,8 @@ module Draw(
     input [11:0]rgb, 
     input [3:0]dir,  //dir : {up, down ,left ,right}
     output [3:0] VGA_R,VGA_G,VGA_B,
-    output VGA_HS,VGA_VS
-    //output [7:0] led_x,led_y   //For debugging. 
+    output VGA_HS,VGA_VS,
+    output [7:0] led_x,led_y   //For debugging. 
     );
     wire [15:0]paddr;
     wire [11:0]pdata;
@@ -164,6 +174,6 @@ module Draw(
     
     DCU dcu(clk,vdata,x,y,vaddr,VGA_R,VGA_G,VGA_B,VGA_HS,VGA_VS);
     
-    PCU pcu(clk,rst,draw,rgb,dir,paddr,pdata,we,x,y);
+    PCU pcu(clk,rst,draw,rgb,dir,paddr,pdata,we,x,y,led_x,led_y);
     
 endmodule
