@@ -142,7 +142,7 @@ module Pipeline_tb(
 
         //EX
         wire [31:0]SEXT_sft2;
-        assign SEXT_sft2=SEXT<<2;
+        assign SEXT_sft2=sext<<2;
         
         wire [31:0] Add_result;
         Shift_Adder sft_adder(ex_npc, SEXT_sft2,Add_result);
@@ -189,7 +189,7 @@ module Pipeline_tb(
         Reg #(5) EX_MEM_ins5(clk,, ex_RegWriteaddr, mem_RegWriteaddr);
         wire mem_zf;
         Reg #(1) EX_MEM_zf(clk,,zf,mem_zf);
-        wire mem_Add_result;
+        wire [31:0]mem_Add_result;
         Reg EX_MEM_Add_result(clk,,Add_result,mem_Add_result);
         
         //MEM
