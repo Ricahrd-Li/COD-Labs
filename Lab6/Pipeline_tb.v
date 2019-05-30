@@ -19,14 +19,13 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 
-
 module Pipeline_tb(
 
     );
      reg [7:0]addr;   //DCU addr
      wire [7:0]pc_out;
      wire [31:0]mem_data,reg_data,ins_data;
-        
+
       reg  clk;
        reg rst;
         //control signals
@@ -41,8 +40,10 @@ module Pipeline_tb(
         PC Pc(clk, rst, pc_in,pc32);
         assign pc_out=pc8;
         assign pc8=pc32[9:2];
-        wire [31:0] incremented_pc;    
-        PC_Adder pc_adder(clk, pc32, incremented_pc);
+        wire [31:0] incremented_pc;  
+         wire [31:0]const_4;
+        Reg_const4 const4(clk,rst,const_4);  
+        PC_Adder pc_adder(clk, pc32,const_4,incremented_pc);
        
         wire [31:0] add_result_mux_in;
         
@@ -89,14 +90,17 @@ module Pipeline_tb(
         Control control(Op,ALUOp,ALUSrc, RegWrite, RegDst, MemRead, MemWrite, MemtoReg, Immi_enable, Branch, Jump,Immi_func);
         
         wire [1:0] ex_ALUOp;
-        wire  ex_ALUSrc;
-        wire ex_RegDst;
+        wire  ex_ALUSrc, ex_RegDst,ex_Immi_enable;
+        wire [1:0] ex_Immi_func;
         wire Bne=Op[0];  
-       
+        wire [5:0]ex_func;
         //EX signals
         Reg #(1) ID_EX_ALUSrc(clk, rst,ALUSrc, ex_ALUSrc);
         Reg #(2) ID_EX_ALUOp(clk,rst,ALUOp, ex_ALUOp);
         Reg #(1) ID_EX_RegDst(clk, rst,RegDst, ex_RegDst);
+        Reg #(1) ID_EX_Immi_enable(clk, rst, Immi_enable, ex_Immi_enable);
+        Reg #(2) ID_EX_Immi_func(clk, rst, Immi_func, ex_Immi_func);
+        Reg #(6) ID_EX_func(clk, rst, ins5_0 ,ex_func);
         
         //MEM signals
         wire ex_Branch, ex_Jump, ex_Bne, ex_MemWrite;
@@ -116,6 +120,7 @@ module Pipeline_tb(
         Reg ID_EX_RegB(clk,, ReadData2 ,ALUb);
         
         wire [31:0] sext;
+        
         Reg ID_EX_sext(clk,,SEXT, sext);
         wire [4:0] ex_ins20_16, ex_ins15_11;
         Reg #(5) ID_EX_ins20_16(clk,, ins20_16, ex_ins20_16);
@@ -132,20 +137,20 @@ module Pipeline_tb(
         Shift_Adder sft_adder(ex_npc, SEXT_sft2,Add_result);
         
         wire [31:0] ALUb_mux,ALUresult;
-        Mux ALUSrcB(ALUSrc, ALUb, sext, ALUb_mux);
+        Mux ALUSrcB(ex_ALUSrc, ALUb, sext, ALUb_mux);
         wire [3:0]ALUctrl;
         wire cf,zf,of;
-        ALUcontrol alu_control(clk,ALUOp,ins5_0, Immi_enable,Immi_func,ALUctrl);
-        ALU alu(clk, ALUctrl,ALUa,ALUb_mux,cf, of,zf, ALUresult);
+        ALUcontrol alu_control(clk,ex_ALUOp,ex_func, ex_Immi_enable, ex_Immi_func,ALUctrl);
+        ALU alu(ALUctrl,ALUa,ALUb_mux,cf, of,zf, ALUresult);
         
-        wire [4:0] ins_mux;
-        Mux #(5) ex_ins_mux(RegDst, ex_ins20_16, ex_ins15_11, ins_mux);
+        wire [4:0] ex_RegWriteaddr;
+        Mux #(5) ex_ins_mux(ex_RegDst, ex_ins20_16, ex_ins15_11, ex_RegWriteaddr);
         
         //EX/ MEM
         //MEM signals
         wire mem_Branch, mem_Jump, mem_Bne, mem_MemWrite;
         Reg #(1) EX_MEM_Branch(clk, rst,ex_Branch, mem_Branch);
-        Reg #(1) EX_MEM_ump(clk, rst,ex_Jump, mem_Jump);
+        Reg #(1) EX_MEM_Jump(clk, rst,ex_Jump, mem_Jump);
         Reg #(1) EX_MEM_Bne(clk, rst,ex_Bne, mem_Bne);
         Reg #(1) EX_MEM_MemWrite(clk,rst, ex_MemWrite, mem_MemWrite);
         
@@ -161,8 +166,8 @@ module Pipeline_tb(
         wire [31:0]mem_ALUb;
         Reg EX_MEM_ALUresult(clk, ,ALUresult, mem_ALUresult);
         Reg EX_MEM_ALUb(clk,, ALUb, mem_ALUb);
-        wire [4:0] mem_ins5;
-        Reg #(5) EX_MEM_ins5(clk,, ins_mux, mem_ins5);
+        wire [4:0] mem_RegWriteaddr;
+        Reg #(5) EX_MEM_ins5(clk,, ex_RegWriteaddr, mem_RegWriteaddr);
         wire mem_zf;
         Reg #(1) EX_MEM_zf(clk,,zf,mem_zf);
         wire mem_Add_result;
@@ -181,8 +186,8 @@ module Pipeline_tb(
         wire[31:0] wb_ALUresult, wb_ReadData;
         Reg MEM_WB_ALUb (clk,, mem_ALUresult, wb_ALUresult);
         Reg MEM_WB_ReadData (clk,, ReadData, wb_ReadData);
-        wire [4:0] wb_ins5;
-        Reg #(5) MEM_WB_ins5(clk,, mem_ins5, wb_ins5);
+        wire [4:0] wb_RegWriteaddr;
+        Reg #(5) MEM_WB_ins5(clk,, mem_RegWriteaddr, wb_RegWriteaddr);
         
         //
         //WB signals
@@ -192,7 +197,7 @@ module Pipeline_tb(
         
         Mux wb_mux(wb_MemtoReg,wb_ALUresult, wb_ReadData, Reg_Writedata);
         
-        assign Reg_Writeaddr=wb_ins5;
+        assign Reg_Writeaddr=wb_RegWriteaddr;
             
         assign Reg_write_en=wb_RegWrite;
 
