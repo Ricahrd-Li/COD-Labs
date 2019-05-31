@@ -39,9 +39,24 @@ module ForwardingUnit(
         PForward1B =0;
         PForward2A =0;
         PForward2B =0;
-        if(Branch)  begin
-            if(PRegA ==ex_Re )
+         if(Branch)  begin
+           //C1
+            if(ex_RegWrite & ex_RegWriteaddr !=0 ) begin
+                if(PRegA ==ex_RegWriteaddr ) PForward1A=1;
+                else PForward1A = 0;
+                if(PRegB ==ex_RegWriteaddr ) PForward1B=1;
+                else PForward1B = 0;
+            end
+            else ;
+            //C2
+            if(mem_RegWrite & mem_RegWriteaddr !=0 ) begin
+                if(PRegA ==mem_RegWriteaddr ) PForward2A=1;
+                else PForward2A = 0;
+                if(PRegB ==mem_RegWriteaddr ) PForward2B=1;
+                else PForward2B = 0;
+            end        
         end
+            else ;
         // C1
         if (mem_RegWrite &  mem_RegWriteaddr !=0 ) begin
             if( RegSrcA == mem_RegWriteaddr) Forward1A=1;
@@ -49,6 +64,7 @@ module ForwardingUnit(
             if (RegSrcB== mem_RegWriteaddr)  Forward1B=1;
             else Forward1B = 0;
         end
+        else ;
         //C2
         if(wb_RegWrite & wb_RegWriteaddr!=0) begin
             if(mem_RegWrite) begin
@@ -64,8 +80,10 @@ module ForwardingUnit(
                 else Forward2B=0;
             end
         end
+        else ;
     end
 endmodule
+
 
 module ForwardMux(
     input Forward1, Forward2,
