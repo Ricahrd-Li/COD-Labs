@@ -5,5 +5,5 @@ Hi there! Here are my cod lab code!!
 ### lab2 [Divider](./lab2)
 ### lab3 [Queue and Stack](./lab3)
 ### lab4 [A VGA Painter](./lab4)
-### lab5 [Implementation of CPU Instruction Pipelining Architecture on FPGA](./lab5_final)
-
+### lab5 [A CPU!](./lab5_final)
+### lab6 [Implementation of CPU Instruction Pipelining Architecture on FPGA](./lab6)
